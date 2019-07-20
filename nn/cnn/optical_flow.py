@@ -78,7 +78,7 @@ def genOpticalFlowDir(folder, prefix):
     work_dir = os.path.join(prefix, folder)
     start = time.time()
     for file in os.listdir(work_dir):
-        if file.endswith(".avi"):
+        if file.endswith(".avi") and not file.startswith("auto", beg=11, end=15):
             print("Processing video {:s}".format(file))
             calcSaveOFVideo(file, prefix)
     end = time.time()

@@ -67,9 +67,9 @@ def get_prob(tensor):
     t = softmax(t)
     s = softmax(s)
     o = softmax(o)
-    tt = zip(["hall", "room", "wild", "street"], map(lambda x: round(x, 2), t))
-    ss = zip(["small", "medium", "large"], map(lambda x: round(x, 2), s))
-    oo = zip(["few", "medium", "lot"], map(lambda x: round(x, 2), o))
+    tt = zip(["hall", "room", "wild", "street"], map(lambda x: round(x * 100, 2), t))
+    ss = zip(["small", "medium", "large"], map(lambda x: round(x * 100, 2), s))
+    oo = zip(["few", "medium", "lot"], map(lambda x: round(x * 100, 2), o))
     return (tt, ss, oo)
 
 def load_nn(net, path):
@@ -171,7 +171,7 @@ class GUI():
         self.nn = net
         self.root = Tk.Tk()
         # draw canvas
-        self.canvas = Tk.Canvas(self.root, width=400, height=320)
+        self.canvas = Tk.Canvas(self.root, width=600, height=430)
         self.canvas.grid(row=0, column=1)
 
         # draw menu
