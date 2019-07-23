@@ -44,7 +44,7 @@ def calcOF(frame1, frame2):
     return cv.calcOpticalFlowFarneback(frame1, frame2, None, 0.5, 3, 15, 3, 5, 1.2, 0)
 
 def calcSaveOFVideo(name, prefix):
-    optical_flow_path = "OpticalFlows"
+    optical_flow_path = "OpticalFlows/train"
     of_abs_path = os.path.join(prefix, optical_flow_path)
     if not os.path.exists(of_abs_path):
         os.mkdir(of_abs_path)
@@ -78,7 +78,7 @@ def genOpticalFlowDir(folder, prefix):
     work_dir = os.path.join(prefix, folder)
     start = time.time()
     for file in os.listdir(work_dir):
-        if file.endswith(".avi") and not file.startswith("auto", beg=11, end=15):
+        if file.endswith(".avi") and not file.startswith("auto", 10, 14) and not file.startswith("test", 10, 14):
             print("Processing video {:s}".format(file))
             calcSaveOFVideo(file, prefix)
     end = time.time()
