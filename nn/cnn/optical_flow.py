@@ -34,10 +34,10 @@ def skipNFrames(video, n):
         status, _ = video.read()
         n -= 1
 
-def sampleFrame(video):
+def sampleFrame(video, skip=1):
     # skip one frame per sample to reduce fps to 12 (originally 25)
     frame = getFrame(video)
-    skipNFrames(video, 1)
+    skipNFrames(video, skip)
     return frame
 
 def calcOF(frame1, frame2):

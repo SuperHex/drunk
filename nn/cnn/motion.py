@@ -14,6 +14,7 @@ import csv
 import random
 from PIL import Image
 
+
 COMMON_PREFIX = '/run/media/cirno/40127CD9E5B9A466/dataset/Hollywood2/'
 TAG_PREFIX = os.path.join(COMMON_PREFIX, "ClipSets")
 FLOW_PREFIX = os.path.join(COMMON_PREFIX, "OpticalFlows")
@@ -75,6 +76,12 @@ def searchSegment(arr, val):
                 return index + 1, val - arr[index - 1]
         index += 1
     return None, None
+
+imgTrans = transforms.Compose([
+    transforms.Resize((112, 112)),
+    transforms.ToTensor(),
+    transforms.Normalize([0.5], [0.5])  # only one channel
+])
 
 class MotionData(Dataset):
     def __init__(self, ttype="train", dirname="train"):
@@ -141,11 +148,7 @@ class MotionData(Dataset):
         self.length = self.countSum[-1]
 
         # transforms that used for pre-processing
-        self.trans = transforms.Compose([
-            transforms.Resize((112, 112)),
-            transforms.ToTensor(),
-            transforms.Normalize([0.5], [0.5])  # only one channel
-        ])
+        self.trans = imgTrans
 
     def __len__(self):
         return self.length
@@ -244,13 +247,11 @@ def train(n):
                 run_loss = 0.0
     print("Done!")
 
-
-net = MotionNet().cuda()
-
 if __name__ == "__main__":
     argv = sys.argv
 
     if argv[1] == "train":
+        net = MotionNet().cuda()
         m = MotionData(dirname="train")
         loader = DataLoader(m, batch_size=32, shuffle=True, num_workers=0)
 
@@ -265,8 +266,8 @@ if __name__ == "__main__":
             torch.save(net.state_dict(), os.path.join(COMMON_PREFIX, "model.pkl"))
             print("model saved to {0}".format(COMMON_PREFIX + "model.pkl"))
     else:
+        net = MotionNet().cpu()
         net.load_state_dict(torch.load(os.path.join(COMMON_PREFIX, "model.pkl")))
-        net.cpu()
         net.eval()
         loader = MotionData("test", "test")
         ran = random.randrange(0, 98660)
