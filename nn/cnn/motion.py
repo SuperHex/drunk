@@ -15,7 +15,7 @@ import random
 from PIL import Image
 
 
-COMMON_PREFIX = '/run/media/cirno/40127CD9E5B9A466/dataset/Hollywood2/'
+COMMON_PREFIX = '/run/media/cirno/40127CD9E5B9A466/dataset/shabixi/'
 TAG_PREFIX = os.path.join(COMMON_PREFIX, "ClipSets")
 FLOW_PREFIX = os.path.join(COMMON_PREFIX, "OpticalFlows")
 FLOW_TRAIN_PREFIX = os.path.join(FLOW_PREFIX, "train_small")
@@ -56,7 +56,7 @@ def mergeTagBCE(tags, offset, dic):
 def mergeTagCross(tags, offset, dic):
     for tag, val in tags:
         if tag not in dic:
-            tagbits = 0  # three classes for now, run, kiss and other
+            tagbits = 1  # 1: other, offset: class
             if val != -1:
                 tagbits = offset
             #tensor = torch.LongTensor(np.array([tagbits]))
@@ -94,26 +94,28 @@ class MotionData(Dataset):
         self.stackCount = {}
         self.imgCache = {}
 
-        if ttype == "train":
-            tag_run = "Run_train.txt"
-            tag_kiss = "Kiss_train.txt"
-            tag_drive = "DriveCar_train.txt"
-            tag_fight = "FightPerson_train.txt"
-            tag_handshake = "HandShake_train.txt"
-        else:
-            tag_run = "Run_test.txt"
-            tag_kiss = "Kiss_test.txt"
-            tag_drive = "DriveCar_test.txt"
-            tag_fight = "FightPerson_test.txt"
-            tag_handshake = "HandShake_test.txt"
+        # if ttype == "train":
+        #     tag_run = "Run_train.txt"
+        #     tag_kiss = "Kiss_train.txt"
+        #     tag_drive = "DriveCar_train.txt"
+        #     tag_fight = "FightPerson_train.txt"
+        #     tag_handshake = "HandShake_train.txt"
+        # else:
+        #     tag_run = "Run_test.txt"
+        #     tag_kiss = "Kiss_test.txt"
+        #     tag_drive = "DriveCar_test.txt"
+        #     tag_fight = "FightPerson_test.txt"
+        #     tag_handshake = "HandShake_test.txt"
         
-        self.tag = mergeTagCross(parse_tag(os.path.join(TAG_PREFIX, tag_run)),
-                            MOTION_RUN, self.tag)
-        self.tag = mergeTagCross(parse_tag(os.path.join(TAG_PREFIX, tag_kiss)),
-                            MOTION_KISS, self.tag)
-        self.tag = mergeTagCross(parse_tag(os.path.join(TAG_PREFIX, tag_drive)), MOTION_DRIVE, self.tag)
-        self.tag = mergeTagCross(parse_tag(os.path.join(TAG_PREFIX, tag_fight)), MOTION_FIGHT, self.tag)
-        self.tag = mergeTagCross(parse_tag(os.path.join(TAG_PREFIX, tag_handshake)), MOTION_HANDSHAKE, self.tag)
+        # self.tag = mergeTagCross(parse_tag(os.path.join(TAG_PREFIX, tag_run)),
+        #                     MOTION_RUN, self.tag)
+        # self.tag = mergeTagCross(parse_tag(os.path.join(TAG_PREFIX, tag_kiss)),
+        #                     MOTION_KISS, self.tag)
+        # self.tag = mergeTagCross(parse_tag(os.path.join(TAG_PREFIX, tag_drive)), MOTION_DRIVE, self.tag)
+        # self.tag = mergeTagCross(parse_tag(os.path.join(TAG_PREFIX, tag_fight)), MOTION_FIGHT, self.tag)
+        # self.tag = mergeTagCross(parse_tag(os.path.join(TAG_PREFIX, tag_handshake)), MOTION_HANDSHAKE, self.tag)
+        self.tag = mergeTagCross(parse_tag(os.path.join(TAG_PREFIX, "Walk_train.txt")), 2, self.tag)
+        print(self.tag)
 
         # get file count from cache. If not found, create one
         cacheFile = os.path.join(self.WORK_DIR, ".stackcount")
@@ -156,7 +158,8 @@ class MotionData(Dataset):
     def __getitem__(self, index):
         folderNum, real_index = searchSegment(self.countSum, index)
         # folder name. e.g. actioncliptrain000001
-        fmt = self.FOLDER_PREFIX + self.TRAIN_TYPE + str(folderNum).zfill(5)
+        #fmt = self.FOLDER_PREFIX + self.TRAIN_TYPE + str(folderNum).zfill(5)
+        fmt = str(folderNum).zfill(2)
         
         # stack[0 - 9] is x, stack [10 - 19] is y
         stack = self.STACK_LEN * 2 * [None]
@@ -207,7 +210,8 @@ class MotionNet(nn.Module):
         self.fc1 = nn.Linear(140 * 2 * 2, 2500)
         self.fc3 = nn.Linear(2500, 1250)
         self.fc4 = nn.Linear(1250, 320)
-        self.fc5 = nn.Linear(320, 6)
+        self.fc5 = nn.Linear(320, 72)
+        self.fc6 = nn.Linear(72, 3)
 
     def forward(self, x):
         x = self.pool(F.relu(self.conv1(x), True))
@@ -219,6 +223,7 @@ class MotionNet(nn.Module):
         x = F.relu(self.fc3(x))
         x = F.relu(self.fc4(x))
         x = F.relu(self.fc5(x))
+        x = F.relu(self.fc6(x))
         return x
 
 def train(n):
@@ -262,7 +267,7 @@ if __name__ == "__main__":
             net.load_state_dict(torch.load(os.path.join(COMMON_PREFIX, "model.pkl")))
 
         for i in range(5):
-            train(4)
+            train(2)
             torch.save(net.state_dict(), os.path.join(COMMON_PREFIX, "model.pkl"))
             print("model saved to {0}".format(COMMON_PREFIX + "model.pkl"))
     else:
@@ -270,8 +275,9 @@ if __name__ == "__main__":
         net.load_state_dict(torch.load(os.path.join(COMMON_PREFIX, "model.pkl")))
         net.eval()
         loader = MotionData("test", "test")
-        ran = random.randrange(0, 98660)
+        ran = random.randrange(0, len(loader))
         l = loader[ran]
         print("Select data {0}".format(ran))
-        infer = net(l["image"].unsqueeze(0)).view([6]).cpu().detach()
+        infer = net(l["image"].unsqueeze(0)).view([3]).cpu().detach()
+        print(infer)
         print("Infered tag: {0}, actual tag: {1}".format(torch.max(infer, 0)[1], l["label"]))

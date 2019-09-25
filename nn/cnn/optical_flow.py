@@ -19,7 +19,7 @@ def normalizeOF(flow):
     flow = np.round((flow + bound) / (2.0 * bound) * 255)
     flow[flow < 0] = 0
     flow[flow > 255] = 255
-    return flow
+    return flow.astype(np.uint8)
 
 def getFrame(video):
     ret, frame = video.read()
@@ -52,14 +52,14 @@ def calcSaveOFVideo(name, prefix):
     if not os.path.exists(of_video_dir_path):
         os.mkdir(of_video_dir_path)
         video = cv.VideoCapture(os.path.join(os.path.join(prefix, "AVIClips"), name))
-        prev = sampleFrame(video)
-        sample = sampleFrame(video)
+        prev = sampleFrame(video, skip=0)
+        sample = sampleFrame(video, skip=0)
         count = 0
         start_time = time.time()
         while prev is not None and sample is not None:
             of = calcOF(prev, sample)
             prev = sample
-            sample = sampleFrame(video)
+            sample = sampleFrame(video, skip=0)
             of_name_x = "OF" + str(count).zfill(4) + "_x.jpeg"
             of_name_y = "OF" + str(count).zfill(4) + "_y.jpeg"
             normalOF = normalizeOF(of)
@@ -78,13 +78,14 @@ def genOpticalFlowDir(folder, prefix):
     work_dir = os.path.join(prefix, folder)
     start = time.time()
     for file in os.listdir(work_dir):
-        if file.endswith(".avi") and not file.startswith("auto", 10, 14) and not file.startswith("test", 10, 14):
+        # if file.endswith(".avi") and not file.startswith("auto", 10, 14) and not file.startswith("test", 10, 14):
+        if not file.startswith("auto", 10, 14) and not file.startswith("test", 10, 14):
             print("Processing video {:s}".format(file))
             calcSaveOFVideo(file, prefix)
     end = time.time()
     print("All done. Time used: {:.2f} s".format(end - start))
 
-prefix = "/run/media/cirno/40127CD9E5B9A466/dataset/Hollywood2/"
+prefix = "/run/media/cirno/40127CD9E5B9A466/dataset/shabixi/"
 avi_path = "AVIClips"
 
 if __name__ == "__main__":
