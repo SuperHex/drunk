@@ -5,6 +5,7 @@ import os
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import cm
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms, utils
 import torch.nn as nn
@@ -13,21 +14,14 @@ import torch.optim as optim
 import csv
 import random
 from PIL import Image
+import optical_flow as of
 import re
+import cv2 as cv
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-TAG_RUN_TRAIN = 'Run_train.txt'
-TAG_RUN_TEST = 'Run_test.txt'
-TAG_KISS_TRAIN = 'Kiss_train.txt'
-TAG_KISS_TEST = 'Kiss_test.txt'
-
 MOTION_OTHER = 0
-MOTION_RUN = 1
-MOTION_KISS = 2
-MOTION_DRIVE = 3
-MOTION_FIGHT = 4
-MOTION_HANDSHAKE = 5
+MOTION_WALK = 1
 
 def atoi(text):
     return int(text) if text.isdigit() else text
@@ -98,12 +92,12 @@ def searchSegment(arr, val):
 imgTrans = transforms.Compose([
     transforms.Resize((112, 112)),
     transforms.ToTensor(),
-    transforms.Normalize([0.5], [0.5])  # only one channel
+    transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])  # only one channel
 ])
 
 class MotionData(Dataset):
     def __init__(self, ttype="train", dirname="train"):
-        self.STACK_LEN = 5
+        self.STACK_LEN = 1
         self.WORK_DIR = os.path.join(FLOW_PREFIX, dirname)
         self.FOLDER_PREFIX =  "actionclip"
         self.TRAIN_TYPE = ttype
@@ -111,6 +105,8 @@ class MotionData(Dataset):
         self.tag = {}
         self.stackCount = {}
         self.imgCache = {}
+        self.videos = {}
+        self.length = 0
 
         # if ttype == "train":
         #     tag_run = "Run_train.txt"
@@ -134,39 +130,20 @@ class MotionData(Dataset):
         # self.tag = mergeTagCross(parse_tag(os.path.join(TAG_PREFIX, tag_handshake)), MOTION_HANDSHAKE, self.tag)
         self.tag = mergeTagCross_(parse_tag(os.path.join(TAG_PREFIX, "1.txt")), self.tag)
         print(self.tag)
-
         # get file count from cache. If not found, create one
-        cacheFile = os.path.join(self.WORK_DIR, ".stackcount")
-        if os.path.isfile(cacheFile):
-            r = csv.reader(open(cacheFile, "r"))
-            for row in r:
-                if not row:
-                    continue
-                name, count = row
-                if name in self.stackCount.keys():
-                    print("WARNING: name collision in cache file")
-                self.stackCount[name] = int(count)
-        else:
-            self.stackCount = dict([(dir, self.numStacks(
-                os.path.join(self.WORK_DIR, dir)))
-                    for dir in os.listdir(self.WORK_DIR)])
-            w = csv.writer(open(cacheFile, "w"))
-            items = list(self.stackCount.items())
-            items.sort()
-            for key, val in items:
-                w.writerow([key, val])
-
         # pre-compute sum for quick lookup
-        self.countSum = len(self.tag) * [None]
-        names = list(self.tag.keys())
-        names.sort(key=natural_keys)  # nature order
-        tmp, index = (0, 0)
-        for name in names:
-            if name in self.stackCount:
-                tmp += self.stackCount[name]
-            self.countSum[index] = tmp
-            index += 1
+        self.countSum = []
+        files = [f for f in os.listdir(self.WORK_DIR) if os.path.isfile(os.path.join(self.WORK_DIR, f))]
+        files.sort(key=natural_keys)
 
+        tmp = 0
+        for f in files:
+            cap = cv.VideoCapture(os.path.join(self.WORK_DIR, f))
+            caplen = int(cap.get(cv.CAP_PROP_FRAME_COUNT))
+            print(f, caplen)
+            self.videos[os.path.splitext(f)[0]] = cap
+            tmp += caplen - self.STACK_LEN + 1
+            self.countSum.append(tmp)
         print(self.countSum)
         self.length = self.countSum[-1]
 
@@ -184,22 +161,19 @@ class MotionData(Dataset):
         fmt = str(folderNum)  # for small tests
         
         # stack[0 - 9] is x, stack [10 - 19] is y
-        stack = self.STACK_LEN * 2 * [None]
+        stack = self.STACK_LEN * [None]
         for idx in range(0, self.STACK_LEN):
-            img_prefix = "OF" + str(real_index + idx).zfill(4)
-            img_x = os.path.join(fmt, img_prefix + "_x.jpeg")
-            img_y = os.path.join(fmt, img_prefix + "_y.jpeg")
-            ix = self.loadImage(os.path.join(self.WORK_DIR, img_x))
-            iy = self.loadImage(os.path.join(self.WORK_DIR, img_y))
-            stack[idx] = ix
-            stack[self.STACK_LEN + idx] = iy
+            self.videos[str(folderNum)].set(cv.CAP_PROP_POS_FRAMES, real_index + idx)
+            arr = self.videos[str(folderNum)].read()[1]
+            im = Image.fromarray(arr)
+            stack[idx] = self.trans(im)
 
         tensor = torch.cat(stack, 0)
 
         # Now that we have the tensor with shape (40, 224, 528),
         # we can return it as inp
         #print("tag for {0} is {1}".format(index, self.tag[fmt]))
-        tag = 1 if real_index in self.tag[fmt] else 0
+        tag = 1 if real_index in self.tag[fmt] or real_index + 1 in self.tag[fmt] or real_index + 2 in self.tag[fmt] else 0
         return {"image": tensor, "label": tag}
         
 
@@ -225,7 +199,7 @@ class MotionData(Dataset):
 class MotionNet(nn.Module):
     def __init__(self):
         super(MotionNet, self).__init__()
-        self.conv1 = nn.Conv2d(10, 60, 6)
+        self.conv1 = nn.Conv2d(3, 60, 6)
         self.pool = nn.MaxPool2d(2, 2)
         self.conv2 = nn.Conv2d(60, 80, 6)
         self.conv3 = nn.Conv2d(80, 120, 6)
@@ -251,9 +225,6 @@ class MotionNet(nn.Module):
         return x
 
 def train(n):
-    print("start training!")
-    print("Dataset size: {0}".format(m.length))
-
     for epoch in range(n):
         run_loss = 0.0
 
@@ -292,12 +263,14 @@ if __name__ == "__main__":
         m = MotionData(dirname="train")
         loader = DataLoader(m, batch_size=32, shuffle=True, num_workers=0)
 
-        criterion = nn.CrossEntropyLoss(weight=torch.from_numpy(np.array([0.1, 2.0])).float()).to(device)
+        criterion = nn.CrossEntropyLoss(weight=torch.from_numpy(np.array([0.1, 1.84])).float()).to(device)
         optimizer = optim.Adam(net.parameters())
 
         if os.path.isfile(os.path.join(COMMON_PREFIX, "model.pkl")):
             net.load_state_dict(torch.load(os.path.join(COMMON_PREFIX, "model.pkl")))
 
+        print("start training!")
+        print("Dataset size: {0}".format(m.length))
         for i in range(5):
             train(2)
             torch.save(net.state_dict(), os.path.join(COMMON_PREFIX, "model.pkl"))

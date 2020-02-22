@@ -1,3 +1,5 @@
+#! /usr/local/bin/python3
+
 import optical_flow as of
 import motion
 import cv2 as cv
@@ -12,7 +14,7 @@ def cv2ToPIL(img):
 
 class OFloader:
     def __init__(self, path):
-        self.stackLen = 20
+        self.stackLen = 5
         self.video = cv.VideoCapture(path)
         self.xbuffer = [None] * self.stackLen
         self.ybuffer = [None] * self.stackLen
@@ -39,15 +41,10 @@ class OFloader:
             # cv.waitKey(0)
         return self.xbuffer, self.ybuffer
 
-net = motion.MotionNet()
-net.load_state_dict(torch.load(os.path.join(motion.COMMON_PREFIX, "model.pkl")))
-net.cpu()
-net.eval()
-
 def most_frequent(List): 
     return max(set(List), key = List.count)
 
-def predict(shape, video):
+def predict(net, shape, video):
     loader = OFloader(video)
     results = []
     for x, y in loader:
@@ -60,4 +57,8 @@ def predict(shape, video):
     print("Predict vector is: {0}, final prediction is: {1}".format(results, most_frequent(results)))
 
 if __name__ == "__main__":
-    predict(int(sys.argv[1]), sys.argv[2])
+    net = motion.MotionNet()
+    net.load_state_dict(torch.load(os.path.join(sys.argv[1], "model.pkl")))
+    net.cpu()
+    net.eval()
+    predict(net, int(sys.argv[2]), sys.argv[3])
