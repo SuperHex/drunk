@@ -102,3 +102,106 @@ class SpatialData(Dataset):
             tensor = self.trans(image)
             #self.imgCache[path] = tensor
             return tensor
+
+# Optical Flow dataset loader
+class MotionData(Dataset):
+    def __init__(self, folderPath, labelPath):
+        self.STACK_LEN = 5
+        self.first_layer_channels = self.STACK_LEN * 2
+
+        self.folderPath = folderPath
+        
+        self.stackCount = {}
+        self.imgCache = {}
+
+        self.labels = buildLabelMap(labelPath)
+
+        # get file count from cache. If not found, create one
+        cacheFile = os.path.join(self.folderPath, ".stackcount")
+        if os.path.isfile(cacheFile):
+            r = csv.reader(open(cacheFile, "r"))
+            for row in r:
+                if not row:
+                    continue
+                name, count = row
+                if name in self.stackCount.keys():
+                    print("WARNING: name collision in cache file")
+                self.stackCount[int(name)] = int(count)
+        else:
+            self.stackCount = dict([(int(dir), self.numStacks(
+                os.path.join(self.folderPath, dir)))
+                    for dir in os.listdir(self.folderPath)])
+            w = csv.writer(open(cacheFile, "w"))
+            items = list(self.stackCount.items())
+            items.sort()
+            for key, val in items:
+                w.writerow([key, val])
+
+        # pre-compute sum for quick lookup
+        self.countSum = len(self.stackCount) * [None]
+        names = list(self.stackCount.keys())
+        names.sort()
+        tmp, index = (0, 0)
+        for name in names:
+            if name in self.stackCount:
+                tmp += self.stackCount[name]
+            self.countSum[index] = tmp
+            index += 1
+
+        print(self.countSum)
+        self.length = self.countSum[-1]
+
+        # transforms that used for pre-processing
+        self.trans = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize([0.5], [0.5])
+        ])
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, index):
+        folderNum, real_index = searchSegment(self.countSum, index)
+        # folder name. e.g. actioncliptrain000001
+        #fmt = self.FOLDER_PREFIX + self.TRAIN_TYPE + str(folderNum).zfill(5)
+        fmt = str(folderNum).zfill(2)
+        
+        # stack[0 - 9] is x, stack [10 - 19] is y
+        stack = self.STACK_LEN * 2 * [None]
+        for idx in range(0, self.STACK_LEN):
+            img_prefix = "OF" + str(real_index + idx).zfill(4)
+            img_x = os.path.join(fmt, img_prefix + "_x.jpeg")
+            img_y = os.path.join(fmt, img_prefix + "_y.jpeg")
+            ix = self.loadImage(os.path.join(self.folderPath, img_x))
+            iy = self.loadImage(os.path.join(self.folderPath, img_y))
+            stack[idx] = ix
+            stack[self.STACK_LEN + idx] = iy
+
+        tensor = torch.cat(stack, 0)
+
+        tag = 0
+        if real_index in self.labels[folderNum] and (real_index + self.STACK_LEN - 1) in self.labels[folderNum]:
+            tag = 1
+
+        return {"image": tensor, "label": tag}
+        
+
+    def numStacks(self, path):
+        # divide by 2 because of (x, y)
+        return self.numFiles(path) // 2 - self.STACK_LEN + 1
+
+    def numFiles(self, path):
+        print(path)
+        _, _, files = next(os.walk(path))
+        return len(files)
+
+    def loadImage(self, path):
+        # skip IO if cached
+        # if path in self.imgCache:
+        #     return self.imgCache[path]
+        # else:
+            image = Image.open(path).convert("L")
+            tensor = self.trans(image)
+            #self.imgCache[path] = tensor
+            return tensor
