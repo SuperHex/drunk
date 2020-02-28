@@ -233,4 +233,4 @@ class ProbabilityData(Dataset):
         if index in self.labels['end']:
             end = 1
 
-        return {'image': image, 'label': [actioness, start, end]}
+        return {'image': image, 'label': torch.Tensor([actioness, start, end])}
