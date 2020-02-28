@@ -203,6 +203,52 @@ if __name__ == "__main__":
 
             plt.show()
 
+        elif args.net == 'spatial':
+            print('Infering for spatial net...')
+            net = SpatialNet()
+            net.load_state_dict(torch.load(output_path))
+            net.eval()
+            loader = SpatialData(folder[0], label)
+
+            
+            xdata, inferL, anchor = [], [], []
+            for i in range(len(loader)):
+                s = loader[i]['image']
+                infer = net(s.unsqueeze(0)).view(2).cpu().detach()
+                index = torch.max(infer, 0)[1]
+                xdata.append(i)
+                inferL.append(index)
+                anchor.append(loader[i]['label'])
+
+            fig = plt.figure()
+            ax = fig.add_subplot(111)
+            ax.plot(xdata, inferL, 'ro', label='infer')
+            ax.plot(xdata, anchor, 'bo', label='truth')
+            plt.show()
+
+        elif args.net == 'motion':
+            print('Infering for motion net...')
+            net = MotionNet(5)
+            net.load_state_dict(torch.load(output_path))
+            net.eval()
+            loader = MotionData(folder[0], label)
+
+            
+            xdata, inferL, anchor = [], [], []
+            for i in range(len(loader)):
+                s = loader[i]['image']
+                infer = net(s.unsqueeze(0)).view(2).cpu().detach()
+                index = torch.max(infer, 0)[1]
+                xdata.append(i)
+                inferL.append(index)
+                anchor.append(loader[i]['label'])
+
+            fig = plt.figure()
+            ax = fig.add_subplot(111)
+            ax.plot(xdata, inferL, 'ro', label='infer')
+            ax.plot(xdata, anchor, 'bo', label='truth')
+            plt.show()
+
         else:
             net = SpatialNet().cpu()
             net.load_state_dict(torch.load(output_path))
