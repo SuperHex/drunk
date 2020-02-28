@@ -1,4 +1,4 @@
-from label import buildLabelMap
+from label import buildLabelMap, buildLabelBCE
 import torch
 import os
 import sys
@@ -206,3 +206,31 @@ class MotionData(Dataset):
             tensor = self.trans(image)
             #self.imgCache[path] = tensor
             return tensor
+
+class ProbabilityData(Dataset):
+    def __init__(self, spatialFolder, MotionFolder, labelPath):
+        self.spatial = SpatialData(spatialFolder, labelPath)
+        self.motion = MotionData(MotionFolder, labelPath)
+
+        self.labels = buildLabelBCE(labelPath)
+
+    def __len__(self):
+        return self.motion.__len__()
+
+    def __getitem__(self, index):
+        x = self.spatial.__getitem__(index)
+        y = self.motion.__getitem__(index)
+
+        image = (x['image'], y['image'])
+        actioness, start, end = 0, 0, 0
+
+        if index in self.labels['actioness']:
+            actioness = 1
+
+        if index in self.labels['start']:
+            start = 1
+
+        if index in self.labels['end']:
+            end = 1
+
+        return {'image': image, 'label': [actioness, start, end]}
