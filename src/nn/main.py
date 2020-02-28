@@ -105,11 +105,12 @@ if __name__ == "__main__":
     parser.add_argument('--net', dest='net', help='Options: spatial | motion | prob')
     parser.add_argument('--path', dest='folder', nargs='+', help='Dataset folder. Can enter multiple folders. e.g. `--path /path/image /path/optical_flow`')
     parser.add_argument('--tag', dest='label', help='Tag file path')
-    parser.add_argument('--models', nargs='+', help='Pretrained models. Can be multiple `--models /foo/model.pkl /bar/model.pkl')
+    parser.add_argument('--models', nargs='*', help='Pretrained models. Can be multiple `--models /foo/model.pkl /bar/model.pkl')
     parser.add_argument('--output', dest='output_path', help="Path to save the model (include model name)")
     parser.add_argument('--lr', dest='learning_rate', type=float, default=1e-3, help='Learning rate. default: [1e-3]')
     parser.add_argument('--epochs', dest='epochs', type=int, default=10, help='Total training rounds. default: [10]')
     parser.add_argument('--batch', dest='batch', type=int, default=32, help='Batch size in training. default: [32]')
+    parser.add_argument('--weight', type=float, nargs='*', help='Weights')
     parser.add_argument('--no-save-per-epoch', dest="no_save_per_epoch", default=False, action='store_true', help="Don't save trained model per epoch")
 
     args = parser.parse_args()
@@ -117,16 +118,17 @@ if __name__ == "__main__":
     folder = args.folder
     label = args.label
     output_path = args.output_path
+    weight = torch.Tensor(args.weight)
 
     if args.action == 'train':
-
-        if os.path.isfile(output_path):
-            net.load_state_dict(torch.load(output_path))
-            print('Loaded pretrained model: ' + output_path)
 
         if args.net == 'spatial':
             net = SpatialNet().to(device)
             m = SpatialData(folder[0], label)
+
+            if os.path.isfile(output_path):
+                net.load_state_dict(torch.load(output_path))
+                print('Loaded pretrained model: ' + output_path)
 
             loader = DataLoader(m, batch_size=args.batch, shuffle=True, num_workers=0)
             criterion = nn.CrossEntropyLoss()
@@ -136,6 +138,10 @@ if __name__ == "__main__":
         elif args.net == 'motion':
             m = MotionData(folder[0], label)
             net = MotionNet(m.first_layer_channels).to(device)
+
+            if os.path.isfile(output_path):
+                net.load_state_dict(torch.load(output_path))
+                print('Loaded pretrained model: ' + output_path)
 
             loader = DataLoader(m, batch_size=args.batch, shuffle=True, num_workers=0)
             criterion = nn.CrossEntropyLoss()
@@ -147,7 +153,7 @@ if __name__ == "__main__":
             net = ProbabilityNet(args.models[0], args.models[1], m.motion.first_layer_channels).to(device)
 
             loader = DataLoader(m, batch_size=args.batch, shuffle=True, num_workers=0)
-            criterion = nn.BCEWithLogitsLoss()
+            criterion = nn.BCEWithLogitsLoss(pos_weight=weight)
             optimizer = optim.Adam(net.parameters(), lr=args.learning_rate)
 
             train_prob(args.epochs, output_path)
