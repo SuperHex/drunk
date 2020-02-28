@@ -70,7 +70,7 @@ def train(epochs, path, save_per_epoch=True):
 
 def train_prob(epochs, path, save_per_epoch=True):
     print("start training!")
-    print("Dataset size: {0}".format(m.length))
+    print("Dataset size: {0}".format(len(m)))
 
     for epoch in range(epochs):
         run_loss = 0.0
@@ -118,7 +118,7 @@ if __name__ == "__main__":
     folder = args.folder
     label = args.label
     output_path = args.output_path
-    weight = torch.Tensor(args.weight)
+    weight = torch.Tensor(args.weight).to(device)
 
     if args.action == 'train':
 
@@ -151,6 +151,11 @@ if __name__ == "__main__":
         elif args.net == 'prob':
             m = ProbabilityData(folder[0], folder[1], label)
             net = ProbabilityNet(args.models[0], args.models[1], m.motion.first_layer_channels).to(device)
+
+            for param in net.spFeatures.parameters():
+                param.requires_grad = False
+            for param in net.moFeatures.parameters():
+                param.requires_grad = False
 
             loader = DataLoader(m, batch_size=args.batch, shuffle=True, num_workers=0)
             criterion = nn.BCEWithLogitsLoss(pos_weight=weight)
