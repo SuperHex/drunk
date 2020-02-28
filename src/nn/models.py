@@ -144,6 +144,7 @@ class MotionNet(nn.Module):
 
 class ProbabilityNet(nn.Module):
     def __init__(self, spatialNetPath, motionNetPath, motionChannel):
+        super(ProbabilityNet, self).__init__()
         spatial = SpatialNet()
         spatial.load_state_dict(torch.load(spatialNetPath))
         self.spFeatures = spatial.features
