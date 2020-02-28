@@ -175,7 +175,7 @@ if __name__ == "__main__":
 
         if args.net == 'prob':
             print('Infering for prob net...')
-            net = ProbabilityNet(models[0], models[1], 5).cpu()
+            net = ProbabilityNet(models[0], models[1], 10).cpu()
             net.load_state_dict(torch.load(output_path))
             net.eval()
             loader = ProbabilityData(folder[0], folder[1], label)
@@ -183,8 +183,8 @@ if __name__ == "__main__":
             action, start, end = [], [], []
             xdata = []
             for i in range(len(loader)):
-                data = loader[i]
-                infer = torch.sigmoid(net(data['image'].unsqueeze(0)).view(3).cpu().detach())
+                s, m = loader[i]['image']
+                infer = torch.sigmoid(net(s.unsqueeze(0), m.unsqueeze(0)).view(3).cpu().detach())
                 inferl = infer.tolist()
                 xdata.append(i)
                 action.append(inferl[0])
