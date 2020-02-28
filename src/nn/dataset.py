@@ -54,7 +54,7 @@ class SpatialData(Dataset):
             total += nbFiles
             self.countSum[folderIndex - 1] = total
         
-        print(self.countSum)
+        #print(self.countSum)
         self.length = self.countSum[-1]
 
         # build labels
@@ -128,9 +128,10 @@ class MotionData(Dataset):
                     print("WARNING: name collision in cache file")
                 self.stackCount[int(name)] = int(count)
         else:
+            _, directories, _ = next(os.walk(self.folderPath))
+            directories.sort()
             self.stackCount = dict([(int(dir), self.numStacks(
-                os.path.join(self.folderPath, dir)))
-                    for dir in os.listdir(self.folderPath)])
+                os.path.join(self.folderPath, dir))) for dir in directories])
             w = csv.writer(open(cacheFile, "w"))
             items = list(self.stackCount.items())
             items.sort()
@@ -148,7 +149,7 @@ class MotionData(Dataset):
             self.countSum[index] = tmp
             index += 1
 
-        print(self.countSum)
+        #print(self.countSum)
         self.length = self.countSum[-1]
 
         # transforms that used for pre-processing

@@ -147,12 +147,27 @@ class MotionNet(nn.Module):
         x = self.classifier(x)
         return x
 
+def plot_loss(fig):
+    plt.ion()
+    ax = fig.add_subplot(111)
+    ln, = plt.plot([], [], 'ro')
+    plt.title('Loss')
+    ax.set_autoscale_on(True) # enable autoscale
+    ax.autoscale_view(True,True,True)
+    return ax, ln,
 
-def train(n):
+def update_loss(ax, line, x, y):
+    line.set_data(y, x)
+    ax.relim()
+    plt.draw()
+
+def train(epochs, path, save_per_epoch=True):
     print("start training!")
     print("Dataset size: {0}".format(m.length))
 
-    for epoch in range(n):
+    xdata = []
+    ydata = []
+    for epoch in range(epochs):
         run_loss = 0.0
 
         for i, data in enumerate(loader, 0):
@@ -168,21 +183,36 @@ def train(n):
 
             run_loss += float(loss.item())
 
+            # draw loss
+            xdata.append(epoch * m.length + i)
+            ydata.append(float(loss.item()))
+            update_loss(ax, line, xdata, ydata)
+
             if i % 10 == 9:
-                print('[%d, %6d] loss = %.3f' %
+                print('[%d, %6d] loss = %.5f' %
                     (epoch + 1, i + 1, run_loss / 10))
                 run_loss = 0.0
+
+        if save_per_epoch:
+            torch.save(net.state_dict(), os.path.join(path, "model.pkl"))
+            print("model saved to {0}".format(folder + "model.pkl"))
     print("Done!")
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Train/Test the two stream network")
-    parser.add_argument('--action', dest='action', help='train / test')
-    parser.add_argument('--net', dest='net', help='spatial / motion')
+    parser.add_argument('--action', dest='action', default='train', help='Options: train | test. default: [train]')
+    parser.add_argument('--net', dest='net', help='Options: spatial | motion')
     parser.add_argument('--path', dest='folder', help='Dataset folder')
     parser.add_argument('--tag', dest='label', help='Tag file path')
+    parser.add_argument('--lr', dest='learning_rate', type=float, default=1e-3, help='Learning rate. default: [1e-3]')
+    parser.add_argument('--epochs', dest='epochs', type=int, default=10, help='Total training rounds. default: [10]')
+    parser.add_argument('--batch', dest='batch', type=int, default=32, help='Batch size in training. default: [32]')
+    parser.add_argument('--no-save-per-epoch', dest="no_save_per_epoch", default=False, action='store_true', help="Don't save trained model per epoch")
 
     args = parser.parse_args()
+
+    print(args.learning_rate)
 
     folder = args.folder
     label = args.label
@@ -198,18 +228,21 @@ if __name__ == "__main__":
             m = MotionData(folder, label)
             net = MotionNet(m.first_layer_channels).to(device)
             
-        loader = DataLoader(m, batch_size=32, shuffle=True, num_workers=0)
+        loader = DataLoader(m, batch_size=args.batch, shuffle=True, num_workers=0)
 
         criterion = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(net.parameters(), lr=0.1)
+        optimizer = optim.Adam(net.parameters(), lr=args.learning_rate)
 
         if os.path.isfile(os.path.join(folder, "model.pkl")):
             net.load_state_dict(torch.load(os.path.join(folder, "model.pkl")))
 
-        for i in range(5):
-            train(2)
-            torch.save(net.state_dict(), os.path.join(folder, "model.pkl"))
-            print("model saved to {0}".format(folder + "model.pkl"))
+        fig = plt.figure()
+        ax, line = plot_loss(fig)
+        train(args.epochs, folder, not args.no_save_per_epoch)
+
+        plt.ioff()
+        plt.show()
+
     elif args.action == 'test':
         net = SpatialNet().cpu()
         net.load_state_dict(torch.load(os.path.join(folder, "model.pkl")))
