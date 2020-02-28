@@ -104,9 +104,9 @@ if __name__ == "__main__":
     parser.add_argument('--action', dest='action', default='train', help='Options: train | test. default: [train]')
     parser.add_argument('--net', dest='net', help='Options: spatial | motion | prob')
     parser.add_argument('--path', dest='folder', nargs='+', help='Dataset folder. Can enter multiple folders. e.g. `--path /path/image /path/optical_flow`')
-    parser.add_argument('--tag', dest='label', help='Tag file path')
+    parser.add_argument('--tag', dest='label', default='', help='Tag file path')
     parser.add_argument('--models', nargs='*', help='Pretrained models. Can be multiple `--models /foo/model.pkl /bar/model.pkl')
-    parser.add_argument('--output', dest='output_path', help="Path to save the model (include model name)")
+    parser.add_argument('--output', dest='output_path', help="Path to save/load the model (include model name)")
     parser.add_argument('--lr', dest='learning_rate', type=float, default=1e-3, help='Learning rate. default: [1e-3]')
     parser.add_argument('--epochs', dest='epochs', type=int, default=10, help='Total training rounds. default: [10]')
     parser.add_argument('--batch', dest='batch', type=int, default=32, help='Batch size in training. default: [32]')
@@ -119,6 +119,7 @@ if __name__ == "__main__":
     label = args.label
     output_path = args.output_path
     weight = torch.Tensor(args.weight).to(device)
+    models = args.models
 
     if args.action == 'train':
 
@@ -150,7 +151,7 @@ if __name__ == "__main__":
             train(args.epochs, output_path, not args.no_save_per_epoch)
         elif args.net == 'prob':
             m = ProbabilityData(folder[0], folder[1], label)
-            net = ProbabilityNet(args.models[0], args.models[1], m.motion.first_layer_channels).to(device)
+            net = ProbabilityNet(models[0], models[1], m.motion.first_layer_channels).to(device)
 
             for param in net.spFeatures.parameters():
                 param.requires_grad = False
@@ -171,13 +172,45 @@ if __name__ == "__main__":
         #plt.show()
 
     elif args.action == 'test':
-        net = SpatialNet().cpu()
-        net.load_state_dict(torch.load(output_path))
-        net.eval()
-        loader = SpatialData(folder[0], label)
-        ran = random.randrange(0, len(loader))
-        l = loader[ran]
-        print("Select data {0}".format(ran))
-        infer = net(l["image"].unsqueeze(0)).view([2]).cpu().detach()
-        print(infer)
-        print("Infered tag: {0}, actual tag: {1}".format(torch.max(infer, 0)[1], l["label"]))
+
+        if args.net == 'prob':
+            print('Infering for prob net...')
+            net = ProbabilityNet(models[0], models[1], 5).cpu()
+            net.load_state_dict(torch.load(output_path))
+            net.eval()
+            loader = ProbabilityData(folder[0], folder[1], label)
+
+            action, start, end = [], [], []
+            xdata = []
+            for i in range(len(loader)):
+                data = loader[i]
+                infer = torch.sigmoid(net(data['image'].unsqueeze(0)).view(3).cpu().detach())
+                inferl = infer.tolist()
+                xdata.append(i)
+                action.append(inferl[0])
+                start.append(inferl[1])
+                end.append(inferl[2])
+
+            fig = plt.figure()
+            ax = fig.add_subplot(311)
+            ax.plot(xdata, action)
+            
+            sx = fig.add_subplot(312)
+            sx.plot(xdata, start)
+
+            ex = fig.add_subplot(313)
+            ex.plot(xdata, end)
+
+            plt.show()
+
+        else:
+            net = SpatialNet().cpu()
+            net.load_state_dict(torch.load(output_path))
+            net.eval()
+            loader = SpatialData(folder[0], label)
+            ran = random.randrange(0, len(loader))
+            l = loader[ran]
+            print("Select data {0}".format(ran))
+            infer = net(l["image"].unsqueeze(0)).view([2]).cpu().detach()
+            print(infer)
+            print("Infered tag: {0}, actual tag: {1}".format(torch.max(infer, 0)[1], l["label"]))
