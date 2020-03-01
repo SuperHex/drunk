@@ -37,28 +37,38 @@ def searchSegment(arr, val):
 
 # Load RGB images
 class SpatialData(Dataset):
-    def __init__(self, folderPath, labelPath):
+    def __init__(self, folderPath, labelPath=None, videoName=None):
         self.folderPath = folderPath
 
-        # get all directories
-        directories = next(os.walk(folderPath))[1]
-        directories.sort(key=natural_keys)
+        if videoName is None:
+            # get all directories
+            directories = next(os.walk(folderPath))[1]
+            directories.sort(key=natural_keys)
 
-        self.countSum = [None] * len(directories)
-        total = 0
-        # compute number of images
-        for directory in directories:
-            absPath = os.path.join(folderPath, directory)
-            folderIndex = int(directory)
-            nbFiles = self.numFiles(absPath)
-            total += nbFiles
-            self.countSum[folderIndex - 1] = total
-        
-        #print(self.countSum)
-        self.length = self.countSum[-1]
+            self.countSum = []
+            self.folders = []
+            total = 0
+            # compute number of images
+            for directory in directories:
+                absPath = os.path.join(folderPath, directory)
+                folderIndex = int(directory)
+                self.folders.append(folderIndex)
+                nbFiles = self.numFiles(absPath)
+                total += nbFiles
+                self.countSum.append(total)
+            
+            #print(self.countSum)
+            self.length = self.countSum[-1]
+        else:
+            self.folders.append(int(videoName))
+            self.countSum = self.numFiles(os.path.join(folderPath, videoName))
+            self.length = self.countSum[0]
 
         # build labels
-        self.labels = buildLabelMap(labelPath)
+        if labelPath is None:
+            self.labels = None
+        else:
+            self.labels = buildLabelMap(labelPath)
         #print(self.labels)
 
         # transforms that used for pre-processing
@@ -72,7 +82,8 @@ class SpatialData(Dataset):
         return self.length
 
     def __getitem__(self, index):
-        folderNum, real_index = searchSegment(self.countSum, index)
+        folderIndex, real_index = searchSegment(self.countSum, index)
+        folderNum = self.folders[folderIndex]
         # folder name. e.g. actioncliptrain000001
         #fmt = self.FOLDER_PREFIX + self.TRAIN_TYPE + str(folderNum).zfill(5)
         fmt = str(folderNum).zfill(2)
@@ -83,7 +94,7 @@ class SpatialData(Dataset):
         tensor = self.loadImage(os.path.join(os.path.join(self.folderPath, fmt), imgName))
 
         tag = 0
-        if real_index in self.labels[folderNum]:
+        if self.labels is not None and real_index in self.labels[folderNum]:
             tag = 1
         
         return {"image": tensor, "label": tag}
@@ -94,25 +105,20 @@ class SpatialData(Dataset):
         return len(files)
 
     def loadImage(self, path):
-        # skip IO if cached
-        # if path in self.imgCache:
-        #     return self.imgCache[path]
-        # else:
-            image = Image.open(path).convert("RGB")
-            tensor = self.trans(image)
-            #self.imgCache[path] = tensor
-            return tensor
+        image = Image.open(path).convert("RGB")
+        tensor = self.trans(image)
+        return tensor
 
 # Optical Flow dataset loader
 class MotionData(Dataset):
-    def __init__(self, folderPath, labelPath):
+    def __init__(self, folderPath, labelPath=None, videoName=None):
         self.STACK_LEN = 5
         self.first_layer_channels = self.STACK_LEN * 2
 
         self.folderPath = folderPath
+        self.folders = []
         
         self.stackCount = {}
-        self.imgCache = {}
 
         self.labels = buildLabelMap(labelPath)
 
@@ -142,6 +148,7 @@ class MotionData(Dataset):
         self.countSum = len(self.stackCount) * [None]
         names = list(self.stackCount.keys())
         names.sort()
+        self.folders = names
         tmp, index = (0, 0)
         for name in names:
             if name in self.stackCount:
@@ -163,7 +170,8 @@ class MotionData(Dataset):
         return self.length
 
     def __getitem__(self, index):
-        folderNum, real_index = searchSegment(self.countSum, index)
+        folderIndex, real_index = searchSegment(self.countSum, index)
+        folderNum = self.folders[folderIndex]
         # folder name. e.g. actioncliptrain000001
         #fmt = self.FOLDER_PREFIX + self.TRAIN_TYPE + str(folderNum).zfill(5)
         fmt = str(folderNum).zfill(2)
@@ -198,21 +206,16 @@ class MotionData(Dataset):
         return len(files)
 
     def loadImage(self, path):
-        # skip IO if cached
-        # if path in self.imgCache:
-        #     return self.imgCache[path]
-        # else:
-            image = Image.open(path).convert("L")
-            tensor = self.trans(image)
-            #self.imgCache[path] = tensor
-            return tensor
+        image = Image.open(path).convert("L")
+        tensor = self.trans(image)
+        return tensor
 
 class ProbabilityData(Dataset):
-    def __init__(self, spatialFolder, MotionFolder, labelPath):
-        self.spatial = SpatialData(spatialFolder, labelPath)
-        self.motion = MotionData(MotionFolder, labelPath)
+    def __init__(self, spatialFolder, MotionFolder, labelPath=None, videoName=None):
+        self.spatial = SpatialData(spatialFolder, labelPath, videoName)
+        self.motion = MotionData(MotionFolder, labelPath, videoName)
 
-        self.labels = buildLabelBCE(labelPath)
+        self.labels = buildLabelBCE(labelPath) if labelPath is not None else None
 
     def __len__(self):
         return self.motion.__len__()
@@ -224,13 +227,14 @@ class ProbabilityData(Dataset):
         image = (x['image'], y['image'])
         actioness, start, end = 0, 0, 0
 
-        if index in self.labels['actioness']:
-            actioness = 1
+        if self.labels is not None:
+            if index in self.labels['actioness']:
+                actioness = 1
 
-        if index in self.labels['start']:
-            start = 1
+            if index in self.labels['start']:
+                start = 1
 
-        if index in self.labels['end']:
-            end = 1
+            if index in self.labels['end']:
+                end = 1
 
         return {'image': image, 'label': torch.Tensor([actioness, start, end])}

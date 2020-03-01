@@ -1,6 +1,7 @@
 from label import buildLabelMap
 from dataset import SpatialData, MotionData, ProbabilityData
 from models import SpatialNet, MotionNet, ProbabilityNet
+from functools import partial
 import torch
 import os
 import sys
@@ -19,19 +20,30 @@ import argparse
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
-def plot_loss(fig):
-    plt.ion()
-    ax = fig.add_subplot(111)
-    ln, = plt.plot([], [], 'ro')
-    plt.title('Loss')
-    ax.set_autoscale_on(True) # enable autoscale
-    ax.autoscale_view(True,True,True)
-    return ax, ln,
+def onpick(lined, event):
+    # on the pick event, find the orig line corresponding to the
+    # legend proxy line, and toggle the visibility
+    legline = event.artist
+    origline = lined[legline]
+    vis = not origline.get_visible()
+    origline.set_visible(vis)
+    # Change the alpha on the line in the legend so we can see what lines
+    # have been toggled
+    if vis:
+        legline.set_alpha(1.0)
+    else:
+        legline.set_alpha(0.2)
+    fig.canvas.draw()
 
-def update_loss(ax, line, x, y):
-    line.set_data(y, x)
-    ax.relim()
-    plt.draw()
+def makeInteractiveLegend(fig, legand, lines):
+    lined = dict()
+    for legline, origline in zip(legand.get_lines(), lines):
+        legline.set_picker(5)
+        lined[legline] = origline
+
+    onpickp = partial(onpick, lined)
+    fig.canvas.mpl_connect('pick_event', onpickp)
+    
 
 def train(epochs, path, save_per_epoch=True):
     print("start training!")
@@ -52,11 +64,6 @@ def train(epochs, path, save_per_epoch=True):
             optimizer.step()
 
             run_loss += float(loss.item())
-
-            # draw loss
-            #xdata.append(epoch * m.length + i)
-            #ydata.append(float(loss.item()))
-            #update_loss(ax, line, xdata, ydata)
 
             if i % 10 == 9:
                 print('[%d, %6d] loss = %.5f' %
@@ -104,6 +111,7 @@ if __name__ == "__main__":
     parser.add_argument('--action', dest='action', default='train', help='Options: train | test. default: [train]')
     parser.add_argument('--net', dest='net', help='Options: spatial | motion | prob')
     parser.add_argument('--path', dest='folder', nargs='+', help='Dataset folder. Can enter multiple folders. e.g. `--path /path/image /path/optical_flow`')
+    parser.add_argument('--video-name', dest='video_name', default=None, help='Use only one video. e.g. 01 default: [None]')
     parser.add_argument('--tag', dest='label', default='', help='Tag file path')
     parser.add_argument('--models', nargs='*', help='Pretrained models. Can be multiple `--models /foo/model.pkl /bar/model.pkl')
     parser.add_argument('--output', dest='output_path', help="Path to save/load the model (include model name)")
@@ -164,21 +172,16 @@ if __name__ == "__main__":
 
             train_prob(args.epochs, output_path)
 
-        #fig = plt.figure()
-        #ax, line = plot_loss(fig)
-        
-
-        #plt.ioff()
-        #plt.show()
-
     elif args.action == 'test':
+
+        video_name = int(args.video_name) if args.video_name is not None else None
 
         if args.net == 'prob':
             print('Infering for prob net...')
             net = ProbabilityNet(models[0], models[1], 10).cpu()
             net.load_state_dict(torch.load(output_path))
             net.eval()
-            loader = ProbabilityData(folder[0], folder[1], label)
+            loader = ProbabilityData(folder[0], folder[1], label, videoName=video_name)
 
             action, start, end = [], [], []
             xdata = []
@@ -208,7 +211,7 @@ if __name__ == "__main__":
             net = SpatialNet()
             net.load_state_dict(torch.load(output_path))
             net.eval()
-            loader = SpatialData(folder[0], label)
+            loader = SpatialData(folder[0], label, videoName=video_name)
 
             
             xdata, inferL, anchor = [], [], []
@@ -222,8 +225,10 @@ if __name__ == "__main__":
 
             fig = plt.figure()
             ax = fig.add_subplot(111)
-            ax.plot(xdata, inferL, 'ro', label='infer')
-            ax.plot(xdata, anchor, 'bo', label='truth')
+            line1, = ax.plot(xdata, inferL, 'r.', markersize=2, label='infer')
+            line2, = ax.plot(xdata, anchor, 'b.', markersize=2, label='truth')
+            legand = ax.legend(fancybox='True', shadow='True')
+            makeInteractiveLegend(fig, legand, [line1, line2])
             plt.show()
 
         elif args.net == 'motion':
@@ -231,7 +236,7 @@ if __name__ == "__main__":
             net = MotionNet(5)
             net.load_state_dict(torch.load(output_path))
             net.eval()
-            loader = MotionData(folder[0], label)
+            loader = MotionData(folder[0], label, videoName=video_name)
 
             
             xdata, inferL, anchor = [], [], []
@@ -245,8 +250,10 @@ if __name__ == "__main__":
 
             fig = plt.figure()
             ax = fig.add_subplot(111)
-            ax.plot(xdata, inferL, 'ro', label='infer')
-            ax.plot(xdata, anchor, 'bo', label='truth')
+            line1, = ax.plot(xdata, inferL, 'r.', markersize=2, label='infer')
+            line2, = ax.plot(xdata, anchor, 'b.', markersize=2, label='truth')
+            legand = ax.legend(fancybox='True', shadow='True')
+            makeInteractiveLegend(fig, legand, [line1, line2])
             plt.show()
 
         else:
