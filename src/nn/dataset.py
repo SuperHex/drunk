@@ -83,7 +83,7 @@ class SpatialData(Dataset):
 
     def __getitem__(self, index):
         folderIndex, real_index = searchSegment(self.countSum, index)
-        folderNum = self.folders[folderIndex]
+        folderNum = self.folders[folderIndex - 1]  # folderIndex is 1 based
         # folder name. e.g. actioncliptrain000001
         #fmt = self.FOLDER_PREFIX + self.TRAIN_TYPE + str(folderNum).zfill(5)
         fmt = str(folderNum).zfill(2)
@@ -171,7 +171,7 @@ class MotionData(Dataset):
 
     def __getitem__(self, index):
         folderIndex, real_index = searchSegment(self.countSum, index)
-        folderNum = self.folders[folderIndex]
+        folderNum = self.folders[folderIndex - 1]  # folderIndex is 1 based
         # folder name. e.g. actioncliptrain000001
         #fmt = self.FOLDER_PREFIX + self.TRAIN_TYPE + str(folderNum).zfill(5)
         fmt = str(folderNum).zfill(2)
