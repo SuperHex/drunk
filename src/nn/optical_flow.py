@@ -2,6 +2,7 @@ import numpy as np
 import cv2 as cv
 import os
 import time
+import argparse
 
 def flow2BGR(flow):
     # for display flow image
@@ -43,50 +44,59 @@ def sampleFrame(video, skip=1):
 def calcOF(frame1, frame2):
     return cv.calcOpticalFlowFarneback(frame1, frame2, None, 0.5, 3, 15, 3, 5, 1.2, 0)
 
-def calcSaveOFVideo(name, prefix):
-    optical_flow_path = "OpticalFlows/train"
-    of_abs_path = os.path.join(prefix, optical_flow_path)
-    if not os.path.exists(of_abs_path):
-        os.mkdir(of_abs_path)
-    of_video_dir_path = os.path.join(of_abs_path, os.path.splitext(name)[0])
-    if not os.path.exists(of_video_dir_path):
-        os.mkdir(of_video_dir_path)
-        video = cv.VideoCapture(os.path.join(os.path.join(prefix, "AVIClips"), name))
-        prev = sampleFrame(video, skip=0)
+def calcOpticalFlow(fullPath, outPath):
+    video = cv.VideoCapture(fullPath)
+    prev = sampleFrame(video, skip=0)
+    sample = sampleFrame(video, skip=0)
+    count = 0
+    start_time = time.time()
+    while prev is not None and sample is not None:
+        of = calcOF(prev, sample)
+        prev = sample
         sample = sampleFrame(video, skip=0)
-        count = 0
-        start_time = time.time()
-        while prev is not None and sample is not None:
-            of = calcOF(prev, sample)
-            prev = sample
-            sample = sampleFrame(video, skip=0)
-            of_name_x = "OF" + str(count).zfill(4) + "_x.jpeg"
-            of_name_y = "OF" + str(count).zfill(4) + "_y.jpeg"
-            normalOF = normalizeOF(of)
-            cv.imwrite(os.path.join(of_video_dir_path, of_name_x), normalOF[..., 0])
-            cv.imwrite(os.path.join(of_video_dir_path, of_name_y), normalOF[..., 1])
-            #print("wrote frame {0} into {1}".format(count, of_video_dir_path))
-            count += 1
-        end_time = time.time()
-        print("Proceed {:d} frames in {:s}. Time used: {:.2f} s".format(count, of_video_dir_path, end_time - start_time))
-        return count
+        of_name_x = "OF" + str(count).zfill(4) + "_x.jpeg"
+        of_name_y = "OF" + str(count).zfill(4) + "_y.jpeg"
+        normalOF = normalizeOF(of)
+        cv.imwrite(os.path.join(outPath, of_name_x), normalOF[..., 0])
+        cv.imwrite(os.path.join(outPath, of_name_y), normalOF[..., 1])
+        #print("wrote frame {0} into {1}".format(count, of_video_dir_path))
+        count += 1
+    end_time = time.time()
+    print("Proceed {:d} frames in {:s}. Time used: {:.2f} s".format(count, outPath, end_time - start_time))
+    return count
+
+def calcSaveOFVideo(path, outPath, video):
+    if not os.path.exists(outPath):
+        os.mkdir(outPath)
+    ofOutputDir = os.path.join(outPath, os.path.splitext(video)[0])
+    if not os.path.exists(ofOutputDir):
+        os.mkdir(ofOutputDir)
+        calcOpticalFlow(os.path.join(path, video), ofOutputDir)
     else:
-        print("Skip existed clip {:s}".format(name))
+        print("Skip existed clip {:s}".format(ofOutputDir))
         return None
 
-def genOpticalFlowDir(folder, prefix):
-    work_dir = os.path.join(prefix, folder)
+def genOpticalFlowDir(path, outPath, video=None):
     start = time.time()
-    for file in os.listdir(work_dir):
-        # if file.endswith(".avi") and not file.startswith("auto", 10, 14) and not file.startswith("test", 10, 14):
+    if video is None:
+        for file in os.listdir(path):
+            # if file.endswith(".avi") and not file.startswith("auto", 10, 14) and not file.startswith("test", 10, 14):
+            if not file.startswith("auto", 10, 14) and not file.startswith("test", 10, 14):
+                print("Processing video {:s}".format(file))
+                calcSaveOFVideo(path, outPath, file)
+    else:
+        file = video
         if not file.startswith("auto", 10, 14) and not file.startswith("test", 10, 14):
             print("Processing video {:s}".format(file))
-            calcSaveOFVideo(file, prefix)
+            calcSaveOFVideo(path, outPath, file)
     end = time.time()
     print("All done. Time used: {:.2f} s".format(end - start))
 
-prefix = "/run/media/cirno/40127CD9E5B9A466/dataset/shabixi/"
-avi_path = "AVIClips"
-
 if __name__ == "__main__":
-    genOpticalFlowDir(avi_path, prefix)
+    parser = argparse.ArgumentParser(description="Calculate optical flow")
+    parser.add_argument('--path', help='Input video parent folder path')
+    parser.add_argument('--video', default=None, help='Input video full name e.g. 01.avi')
+    parser.add_argument('--output', help='Output parent folder')
+    args = parser.parse_args()
+    
+    genOpticalFlowDir(args.path, args.output, args.video)
