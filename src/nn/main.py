@@ -72,7 +72,7 @@ def train(epochs, path, save_per_epoch=True):
 
         if save_per_epoch:
             torch.save(net.state_dict(), path)
-            print("model saved to {0}".format(folder + "model.pkl"))
+            print("model saved to {0}".format(path))
     print("Done!")
 
 def train_prob(epochs, path, save_per_epoch=True):
@@ -233,7 +233,7 @@ if __name__ == "__main__":
 
         elif args.net == 'motion':
             print('Infering for motion net...')
-            net = MotionNet(5)
+            net = MotionNet(10)
             net.load_state_dict(torch.load(output_path))
             net.eval()
             loader = MotionData(folder[0], label, videoName=video_name)

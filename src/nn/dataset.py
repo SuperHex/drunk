@@ -39,6 +39,7 @@ def searchSegment(arr, val):
 class SpatialData(Dataset):
     def __init__(self, folderPath, labelPath=None, videoName=None):
         self.folderPath = folderPath
+        self.folders = []
 
         if videoName is None:
             # get all directories
@@ -120,7 +121,7 @@ class MotionData(Dataset):
         
         self.stackCount = {}
 
-        self.labels = buildLabelMap(labelPath)
+        self.labels = None if labelPath is None else buildLabelMap(labelPath)
 
         # get file count from cache. If not found, create one
         cacheFile = os.path.join(self.folderPath, ".stackcount")
@@ -145,19 +146,29 @@ class MotionData(Dataset):
                 w.writerow([key, val])
 
         # pre-compute sum for quick lookup
-        self.countSum = len(self.stackCount) * [None]
+        self.countSum = []
         names = list(self.stackCount.keys())
         names.sort()
         self.folders = names
-        tmp, index = (0, 0)
-        for name in names:
-            if name in self.stackCount:
-                tmp += self.stackCount[name]
-            self.countSum[index] = tmp
-            index += 1
 
-        #print(self.countSum)
-        self.length = self.countSum[-1]
+        if videoName is None:
+            tmp = 0
+            for name in names:
+                if name in self.stackCount:
+                    tmp += self.stackCount[name]
+                self.countSum.append(tmp)
+
+            #print(self.countSum)
+            self.length = self.countSum[-1]
+
+        else:
+            video = int(videoName)
+            if video in set(names):
+                self.countSum.append(self.stackCount[video])
+            else:
+                print("Video " + videoName + " not found!")
+                exit(1)
+            self.length = self.countSum[0]
 
         # transforms that used for pre-processing
         self.trans = transforms.Compose([
@@ -188,6 +199,9 @@ class MotionData(Dataset):
             stack[self.STACK_LEN + idx] = iy
 
         tensor = torch.cat(stack, 0)
+
+        if self.labels is None:
+            return {'image': tensor, 'label': 0}
 
         tag = 0
         if real_index in self.labels[folderNum] and (real_index + self.STACK_LEN - 1) in self.labels[folderNum]:
