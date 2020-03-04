@@ -17,6 +17,7 @@ from PIL import Image
 import random
 import re
 import argparse
+import pickle
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
@@ -115,6 +116,7 @@ if __name__ == "__main__":
     parser.add_argument('--tag', dest='label', default='', help='Tag file path')
     parser.add_argument('--models', nargs='*', help='Pretrained models. Can be multiple `--models /foo/model.pkl /bar/model.pkl')
     parser.add_argument('--output', dest='output_path', help="Path to save/load the model (include model name)")
+    parser.add_argument('--infer-out', dest='infer_out', default=None, help='Path to save inference output')
     parser.add_argument('--lr', dest='learning_rate', type=float, default=1e-3, help='Learning rate. default: [1e-3]')
     parser.add_argument('--epochs', dest='epochs', type=int, default=10, help='Total training rounds. default: [10]')
     parser.add_argument('--batch', dest='batch', type=int, default=32, help='Batch size in training. default: [32]')
@@ -233,37 +235,50 @@ if __name__ == "__main__":
 
         elif args.net == 'motion':
             print('Infering for motion net...')
-            net = MotionNet(10)
+            net = MotionNet(10).to(device)
             net.load_state_dict(torch.load(output_path))
             net.eval()
-            loader = MotionData(folder[0], label, videoName=video_name)
 
-            
-            xdata, inferL, anchor = [], [], []
-            for i in range(len(loader)):
-                s = loader[i]['image']
-                infer = net(s.unsqueeze(0)).view(2).cpu().detach()
-                index = torch.max(infer, 0)[1]
-                xdata.append(i)
-                inferL.append(index)
-                anchor.append(loader[i]['label'])
+            files = []
+            if video_name is not None:
+                files.append(video_name)
+            else:
+                _, _, videos = next(os.walk(folder[0]))
+                for video in videos:
+                    files.append(int(video))
 
-            fig = plt.figure()
-            ax = fig.add_subplot(111)
-            line1, = ax.plot(xdata, inferL, 'r.', markersize=2, label='infer')
-            line2, = ax.plot(xdata, anchor, 'b.', markersize=2, label='truth')
-            legand = ax.legend(fancybox='True', shadow='True')
-            makeInteractiveLegend(fig, legand, [line1, line2])
-            plt.show()
+            for video in files:
+                print('Infering video ' + str(video))
+                loader = MotionData(folder[0], label, videoName=video)
+                inferL, anchor = [], []
+                for i in range(len(loader)):
+                    s = loader[i]['image'].to(device)
+                    infer = net(s.unsqueeze(0)).view(2).cpu().detach()
+                    index = torch.max(infer, 0)[1]
+                    inferL.append(index)
+                    anchor.append(loader[i]['label'])
+
+                with open(str(video).zfill(2) + '.infer', 'wb') as handle:
+                    print('Dumping inference to ' + str(video).zfill(2) + '.infer')
+                    pickle.dump((inferL, anchor), handle)
+                #fig = plt.figure()
+                #ax = fig.add_subplot(111)
+                #line1, = ax.plot(xdata, inferL, 'r.', markersize=2, label='infer')
+                #line2, = ax.plot(xdata, anchor, 'b.', markersize=2, label='truth')
+                #legand = ax.legend(fancybox='True', shadow='True')
+                #makeInteractiveLegend(fig, legand, [line1, line2])
+                    
+            #plt.show()
 
         else:
-            net = SpatialNet().cpu()
-            net.load_state_dict(torch.load(output_path))
-            net.eval()
-            loader = SpatialData(folder[0], label)
-            ran = random.randrange(0, len(loader))
-            l = loader[ran]
-            print("Select data {0}".format(ran))
-            infer = net(l["image"].unsqueeze(0)).view([2]).cpu().detach()
-            print(infer)
-            print("Infered tag: {0}, actual tag: {1}".format(torch.max(infer, 0)[1], l["label"]))
+            pass
+            #net = SpatialNet().cpu()
+            #net.load_state_dict(torch.load(output_path))
+            #net.eval()
+            #loader = SpatialData(folder[0], label)
+            #ran = random.randrange(0, len(loader))
+            #l = loader[ran]
+            #print("Select data {0}".format(ran))
+            #infer = net(l["image"].unsqueeze(0)).view([2]).cpu().detach()
+            #print(infer)
+            #print("Infered tag: {0}, actual tag: {1}".format(torch.max(infer, 0)[1], l["label"]))
