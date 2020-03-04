@@ -21,6 +21,9 @@ import pickle
 
 device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
+STACK = 3
+MOTION_INPUT = STACK * 2
+
 def onpick(lined, event):
     # on the pick event, find the orig line corresponding to the
     # legend proxy line, and toggle the visibility
@@ -147,7 +150,7 @@ if __name__ == "__main__":
 
             train(args.epochs, output_path, not args.no_save_per_epoch)
         elif args.net == 'motion':
-            m = MotionData(folder[0], label)
+            m = MotionData(STACK, folder[0], label)
             net = MotionNet(m.first_layer_channels).to(device)
 
             if os.path.isfile(output_path):
@@ -180,7 +183,7 @@ if __name__ == "__main__":
 
         if args.net == 'prob':
             print('Infering for prob net...')
-            net = ProbabilityNet(models[0], models[1], 10).cpu()
+            net = ProbabilityNet(models[0], models[1], MOTION_INPUT).cpu()
             net.load_state_dict(torch.load(output_path))
             net.eval()
             loader = ProbabilityData(folder[0], folder[1], label, videoName=video_name)
@@ -235,7 +238,7 @@ if __name__ == "__main__":
 
         elif args.net == 'motion':
             print('Infering for motion net...')
-            net = MotionNet(10).to(device)
+            net = MotionNet(MOTION_INPUT).to(device)
             net.load_state_dict(torch.load(output_path))
             net.eval()
 
@@ -249,7 +252,7 @@ if __name__ == "__main__":
 
             for video in files:
                 print('Infering video ' + str(video))
-                loader = MotionData(folder[0], label, videoName=video)
+                loader = MotionData(STACK, folder[0], label, videoName=video)
                 inferL, anchor = [], []
                 for i in range(len(loader)):
                     s = loader[i]['image'].to(device)

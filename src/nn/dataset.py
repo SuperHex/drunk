@@ -112,8 +112,9 @@ class SpatialData(Dataset):
 
 # Optical Flow dataset loader
 class MotionData(Dataset):
-    def __init__(self, folderPath, labelPath=None, videoName=None):
-        self.STACK_LEN = 5
+    def __init__(self, stackLen, folderPath, labelPath=None, videoName=None):
+        self.STACK_LEN = stackLen
+        self.OFFSET = self.STACK_LEN // 2
         self.first_layer_channels = self.STACK_LEN * 2
 
         self.folderPath = folderPath
@@ -181,16 +182,17 @@ class MotionData(Dataset):
         return self.length
 
     def __getitem__(self, index):
-        folderIndex, real_index = searchSegment(self.countSum, index)
+        # Index is OF index
+
+        folderIndex, of_index = searchSegment(self.countSum, index)
+        center_index = of_index + self.OFFSET
         folderNum = self.folders[folderIndex - 1]  # folderIndex is 1 based
-        # folder name. e.g. actioncliptrain000001
-        #fmt = self.FOLDER_PREFIX + self.TRAIN_TYPE + str(folderNum).zfill(5)
         fmt = str(folderNum).zfill(2)
         
         # stack[0 - 9] is x, stack [10 - 19] is y
         stack = self.STACK_LEN * 2 * [None]
-        for idx in range(0, self.STACK_LEN):
-            img_prefix = "OF" + str(real_index + idx).zfill(4)
+        for idx in range(-1 * self.OFFSET, self.STACK_LEN):
+            img_prefix = "OF" + str(center_index + idx).zfill(4)
             img_x = os.path.join(fmt, img_prefix + "_x.jpeg")
             img_y = os.path.join(fmt, img_prefix + "_y.jpeg")
             ix = self.loadImage(os.path.join(self.folderPath, img_x))
@@ -203,10 +205,15 @@ class MotionData(Dataset):
         if self.labels is None:
             return {'image': tensor, 'label': 0}
 
-        tag = 0
-        if real_index in self.labels[folderNum] and (real_index + self.STACK_LEN - 1) in self.labels[folderNum]:
-            tag = 1
-
+        tags = []
+        for i in range(-1 * self.OFFSET, self.STACK_LEN):
+            if i in self.labels[folderNum]:
+                tags.append(True)
+            else:
+                tags.append(False)
+        
+        tag = 1 if all(tags[:self.OFFSET + 1]) or all(tags[self.OFFSET:]) else 0
+        
         return {"image": tensor, "label": tag}
         
 
