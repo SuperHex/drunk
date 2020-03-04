@@ -207,7 +207,7 @@ class MotionData(Dataset):
 
         tags = []
         for i in range(-1 * self.OFFSET, self.OFFSET + 1):
-            if i in self.labels[folderNum]:
+            if center_index + i in self.labels[folderNum]:
                 tags.append(True)
             else:
                 tags.append(False)
