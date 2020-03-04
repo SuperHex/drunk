@@ -258,8 +258,9 @@ if __name__ == "__main__":
                     inferL.append(index)
                     anchor.append(loader[i]['label'])
 
-                with open(str(video).zfill(2) + '.infer', 'wb') as handle:
-                    print('Dumping inference to ' + str(video).zfill(2) + '.infer')
+                infer_path = args.infer_out + str(video).zfill(2) + '.infer'
+                with open(infer_path, 'wb') as handle:
+                    print('Dumping inference to ' + infer_path)
                     pickle.dump((inferL, anchor), handle)
                 #fig = plt.figure()
                 #ax = fig.add_subplot(111)
