@@ -83,6 +83,8 @@ def train_prob(epochs, path, save_per_epoch=True):
     print("start training!")
     print("Dataset size: {0}".format(len(m)))
 
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.9)
+
     for epoch in range(epochs):
         run_loss = 0.0
 
@@ -103,6 +105,8 @@ def train_prob(epochs, path, save_per_epoch=True):
                 print('[%d, %6d] loss = %.5f' %
                     (epoch + 1, i + 1, run_loss / 10))
                 run_loss = 0.0
+
+        scheduler.step()
 
         if save_per_epoch:
             torch.save(net.state_dict(), path)
@@ -131,7 +135,7 @@ if __name__ == "__main__":
     folder = args.folder
     label = args.label
     output_path = args.output_path
-    weight = torch.Tensor(args.weight).to(device)
+    weight = None if args.weight is None else torch.Tensor(args.weight).to(device)
     models = args.models
 
     if args.action == 'train':

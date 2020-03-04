@@ -134,6 +134,14 @@ class MotionNet(nn.Module):
             nn.Linear(4096, 2)
         )
 
+        self.init_params()
+
+    def init_params(self):
+        for i, m in enumerate(self.modules()):
+            if isinstance(m, nn.Conv2d):
+                torch.nn.init.xavier_normal_(m.weight)
+                torch.nn.init.constant_(m.bias, 0)
+
     def forward(self, x):
         x = self.features(x)
         #print(x.shape)
