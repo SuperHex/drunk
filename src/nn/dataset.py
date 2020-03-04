@@ -191,7 +191,7 @@ class MotionData(Dataset):
         
         # stack[0 - 9] is x, stack [10 - 19] is y
         stack = self.STACK_LEN * 2 * [None]
-        for idx in range(-1 * self.OFFSET, self.STACK_LEN):
+        for idx in range(-1 * self.OFFSET, self.OFFSET + 1):
             img_prefix = "OF" + str(center_index + idx).zfill(4)
             img_x = os.path.join(fmt, img_prefix + "_x.jpeg")
             img_y = os.path.join(fmt, img_prefix + "_y.jpeg")
@@ -206,7 +206,7 @@ class MotionData(Dataset):
             return {'image': tensor, 'label': 0}
 
         tags = []
-        for i in range(-1 * self.OFFSET, self.STACK_LEN):
+        for i in range(-1 * self.OFFSET, self.OFFSET + 1):
             if i in self.labels[folderNum]:
                 tags.append(True)
             else:
