@@ -9,7 +9,12 @@ include_directories(${TORCH_INCLUDE_DIRS} ${OpenCV_INCLUDE_DIRS})
 set(CMAKE_CXX_STANDARD 17)
 
 add_executable(Fart src/fart.cpp)
-target_link_libraries(Fart ${TORCH_LIBRARIES} ${OpenCV_LIBRARIES})
+
+if (MSVC)
+    target_link_libraries(Fart ${TORCH_LIBRARIES} ${OpenCV_LIBRARIES})
+else()
+    target_link_libraries(Fart ${TORCH_LIBRARIES} ${OpenCV_LIBRARIES} c++fs)
+endif()
 
 #set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 #set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
