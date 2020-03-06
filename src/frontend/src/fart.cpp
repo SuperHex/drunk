@@ -12,12 +12,17 @@ torch::Tensor matToTensor(const cv::Mat& mat) {
 }
 
 int main(int argc, const char* argv[]) {
-    auto module = torch::jit::load(argv[1]);
-    std::cout << "Loaded model! " << std::endl;
-    std::vector<torch::jit::IValue> inputs(1, torch::ones({1, 6, 224, 224}));
-    auto out = module.forward(inputs).toTensor();
-    auto index = std::get<1>(torch::max(out, 0));
-    auto i = index.item<int>();
-    std::cout << "Inference: " << i << std::endl;
+    try {
+        auto module = torch::jit::load(argv[1]);
+        std::cout << "Loaded model! " << std::endl;
+        std::vector<torch::jit::IValue> inputs(1, torch::ones({1, 6, 224, 224}));
+        auto out = module.forward(inputs).toTensor();
+        auto index = std::get<1>(torch::max(out, 0));
+        auto i = index.item<int>();
+        std::cout << "Inference: " << i << std::endl;
+    }
+    catch (std::exception& e) {
+        std::cout << "Got error: " << e.what() << std::endl;
+    }
     return 0;
 }
