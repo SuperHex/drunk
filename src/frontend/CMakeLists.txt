@@ -10,11 +10,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_executable(Fart src/fart.cpp)
 
-if (MSVC)
-    target_link_libraries(Fart ${TORCH_LIBRARIES} ${OpenCV_LIBRARIES})
-else()
-    target_link_libraries(Fart ${TORCH_LIBRARIES} ${OpenCV_LIBRARIES} c++fs)
-endif()
+target_link_libraries(Fart ${TORCH_LIBRARIES} ${OpenCV_LIBRARIES})
 
 #set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 #set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
