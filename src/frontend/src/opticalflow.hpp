@@ -7,11 +7,8 @@
 
 #include <chrono>
 #include <deque>
+#include <optional>
 #include <vector>
-
-#ifndef __clang__
-#include <execution>
-#endif
 
 torch::Tensor matToTensor(const cv::Mat& mat) {
     auto tensor = torch::from_blob(mat.data, {1, mat.rows, mat.cols, 1}, at::kByte);
@@ -56,7 +53,6 @@ public:
         std::vector<cv::Mat> flow_buffer;
         flow_buffer.reserve(buffer.size() - 1);
         startTime = std::chrono::steady_clock::now();
-        #if defined(__clang__)
         std::transform(buffer.begin(), buffer.end() - 1, buffer.begin() + 1, std::back_inserter(flow_buffer),
             [](const auto& frame1, const auto& frame2) {
                 cv::Mat flow(frame1.size(), CV_32FC2);
@@ -69,27 +65,24 @@ public:
             flows_x.emplace_back(std::move(parts[0]));
             flows_y.emplace_back(std::move(parts[1]));
         });
-        #else
-        std::transform(std::execution::par, buffer.begin(), buffer.end() - 1, buffer.begin() + 1, std::back_inserter(flows),
-            [](const auto& frame1, const auto& frame2) {
-                cv::Mat flow(frame1.size(), CV_32FC2);
-                cv::calcOpticalFlowFarneback(frame1, frame2, flow, 0.5, 3, 15, 3, 5, 1.2, 0);
-                return flow;
-            } );
-        std::for_each(std::execution::par_seq, flow_buffer.begin(), flow_buffer.end(), [&](const auto& flow) {
-            cv::Mat parts[2];
-            cv::split(flow, parts);
-            flows_x.emplace_back(std::move(parts[0]));
-            flows_y.emplace_back(std::move(parts[1]));
-        });
-        #endif
         endTime = std::chrono::steady_clock::now();
         diff = endTime - startTime;
         std::cout << "Precompute all optical flows in " << diff.count() << " s" << std::endl;
         return flows_x.size();
     }
 
-
+    std::optional<torch::Tensor> next(size_t nbFrames) {
+        if (flows_x.size() < nbFrames) {
+            return std::nullopt;
+        }
+        std::vector<torch::Tensor> tensors;
+        tensors.reserve(nbFrames * 2);
+        std::transform(flows_x.begin(), flows_x.begin() + nbFrames, std::back_inserter(tensors), [](const cv::Mat& mat) { return matToTensor(mat); });
+        std::transform(flows_y.begin(), flows_y.begin() + nbFrames, std::back_inserter(tensors), [](const cv::Mat& mat) { return matToTensor(mat); });
+        flows_x.pop_front();
+        flows_y.pop_front();
+        return torch::cat(tensors, 1);
+    }
 
 private:
     cv::VideoCapture capture;
