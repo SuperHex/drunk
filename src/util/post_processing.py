@@ -41,10 +41,47 @@ def removeSingleJitter(infer):
         previous = point
     return infer
 
+def removeDuplicate(infer):
+    TOO_CLOSE_WINDOW = 3
+    EVENT_WINDOW = 3
+    
+    event_start, event_end, index = - EVENT_WINDOW, - TOO_CLOSE_WINDOW, 1
+    while index < len(infer):
+        current = infer[index]
+        previous = infer[index - 1]
+        # Rising edge
+        if previous == 0 and current == 1:
+            # check if two rising edge is too close
+            print(index - event_end - 1)
+            if abs(index - event_end - 1) < TOO_CLOSE_WINDOW:
+                infer[index] = 0
+            else:
+                event_start = index
+                print("start ", event_start)
+
+        # Falling edge
+        elif previous == 1 and current == 0:
+            # also check if event is too short
+            print(index - event_start)
+            if abs(index - event_start) < EVENT_WINDOW:
+                infer[index] = 1
+            else:
+                event_end = index - 1
+                print("end ", event_end)
+
+
+        index += 1
+
+    return infer
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="唐大傻的痴呆工具箱")
     parser.add_argument('--path', help='File path')
     args = parser.parse_args()
 
     infer, truth = loadInference(args.path)
-    plotInference(removeSingleJitter(infer), truth)
+    
+    infer = removeSingleJitter(infer)
+    infer = removeDuplicate(infer)
+    
+    plotInference(infer, truth)
