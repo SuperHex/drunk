@@ -268,12 +268,12 @@ if __name__ == "__main__":
                 infer_path = args.infer_out + str(video).zfill(2) + '.infer'
                 inferStr = ''.join(str(i.item()) for i in inferL)
                 truthStr = ''.join(str(i) for i in anchor)
-                with open(infer_path, 'w') as handle:
+                with open(infer_path, 'wb') as handle:
                     print('Dumping inference to ' + infer_path)
-                    #pickle.dump((inferL, anchor), handle)
-                    handle.write(inferStr)
-                    handle.write('\n')
-                    handle.write(truthStr)
+                    pickle.dump((inferL, anchor), handle)
+                    # handle.write(inferStr)
+                    # handle.write('\n')
+                    # handle.write(truthStr)
                 #fig = plt.figure()
                 #ax = fig.add_subplot(111)
                 #line1, = ax.plot(xdata, inferL, 'r.', markersize=2, label='infer')

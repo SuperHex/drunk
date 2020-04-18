@@ -3,11 +3,13 @@ import pickle
 import argparse
 
 def loadInference(path):
-    with open(path, 'r') as handle:
-        inferStr = handle.readline()
-        truthStr = handle.readline()
-        infer = [int(i) for i in inferStr]
-        truth = [int(i) for i in truthStr]
+    with open(path, 'rb') as handle:
+        infer, truth = pickle.load(handle)
+    # with open(path, 'r') as handle:
+    #     inferStr = handle.readline()
+    #     truthStr = handle.readline()
+    #     infer = [int(i) for i in inferStr]
+    #     truth = [int(i) for i in truthStr]
         return infer, truth
 
 def plotInference(infer, truth):
